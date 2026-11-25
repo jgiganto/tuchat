@@ -1,0 +1,110 @@
+/* Estilos globales: variables de color y piezas reutilizadas por varios componentes.
+   Lo específico de cada componente está en su propio bloque <style scoped>. */
+
+:root {
+  --color-background: #f5f6f8;
+  --color-surface: #fff;
+  --color-text: #1d2330;
+  --color-muted: #6b7280;
+  --color-border: #e3e6eb;
+  --color-accent: #5b4bdb;
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--color-text);
+  background: var(--color-background);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #14161b;
+    --color-surface: #1e2128;
+    --color-text: #e6e8ec;
+    --color-muted: #9aa1ad;
+    --color-border: #2e323b;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--color-muted);
+}
+
+input {
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-background);
+}
+
+button {
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  color: #fff;
+  background: var(--color-accent);
+  cursor: pointer;
+}
+
+button.secondary {
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+  background: transparent;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.card {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.muted {
+  font-size: 0.9rem;
+  color: var(--color-muted);
+}
+
+.error {
+  color: var(--color-danger);
+}
