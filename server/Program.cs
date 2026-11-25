@@ -10,7 +10,11 @@ if (!string.IsNullOrEmpty(hostingPort))
     builder.WebHost.UseUrls($"http://0.0.0.0:{hostingPort}");
 }
 
+// Una línea por entrada de log; el formato por defecto ocupa dos y se lee peor en el panel de Render.
+builder.Logging.AddSimpleConsole(options => options.SingleLine = true);
+
 builder.Services.AddSingleton<IConnectedUserRegistry, InMemoryConnectedUserRegistry>();
+builder.Services.AddSingleton<IChatHistory, InMemoryChatHistory>();
 
 // Singleton para que el contador de llamadas de cada conexión se conserve entre llamadas.
 builder.Services.AddSingleton<HubRateLimitFilter>();

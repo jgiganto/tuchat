@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { HUB_URL } from './realtime/realtimeContract'
 import { useHubConnection } from './realtime/useHubConnection'
+import { loadSavedSession, updateSavedSession } from './session/savedSession'
 import ConnectionPanel from './realtime/ConnectionPanel.vue'
 import ChatRoom from './chat/ChatRoom.vue'
 
@@ -10,7 +11,25 @@ import ChatRoom from './chat/ChatRoom.vue'
 const hub = useHubConnection(HUB_URL)
 const { isConnected } = hub
 
-const userName = ref(`usuario${Math.floor(Math.random() * 1000)}`)
+const savedSession = loadSavedSession()
+const userName = ref(savedSession.userName ?? `usuario${Math.floor(Math.random() * 1000)}`)
+
+async function connect() {
+  await hub.connect(userName.value)
+  if (isConnected.value) {
+    updateSavedSession({ userName: userName.value, shouldReconnect: true })
+  }
+}
+
+async function disconnect() {
+  await hub.disconnect()
+  updateSavedSession({ shouldReconnect: false })
+}
+
+// Si la pestaña estaba conectada antes de recargar, se vuelve a conectar sola.
+onMounted(() => {
+  if (savedSession.shouldReconnect) connect()
+})
 </script>
 
 <template>
@@ -18,7 +37,7 @@ const userName = ref(`usuario${Math.floor(Math.random() * 1000)}`)
     <h1>SignalR PoC <small>Vue 3 + ASP.NET Core</small></h1>
   </header>
 
-  <ConnectionPanel v-model:user-name="userName" :hub="hub" />
+  <ConnectionPanel v-model:user-name="userName" :hub="hub" @connect="connect" @disconnect="disconnect" />
 
   <main v-if="isConnected">
     <ChatRoom :hub="hub" :user-name="userName" />

@@ -1,8 +1,9 @@
 import { ref, computed, onBeforeUnmount } from 'vue'
 import { useHubEvent } from '../realtime/useHubConnection'
 import { HubMethods, ServerEvents } from '../realtime/realtimeContract'
+import { loadSavedSession, updateSavedSession } from '../session/savedSession'
 
-export const DEFAULT_ROOM = 'general'
+const DEFAULT_ROOM = 'general'
 
 // Como mucho se envía un aviso de "escribiendo" cada este tiempo, para no saturar el servidor.
 const TYPING_NOTIFICATION_THROTTLE_MS = 800
@@ -10,10 +11,13 @@ const TYPING_NOTIFICATION_THROTTLE_MS = 800
 const TYPING_INDICATOR_DURATION_MS = 1500
 
 /**
- * Estado y acciones del chat. Se apoya en una conexión ya establecida:
- * el componente que lo usa solo debe montarse estando conectado.
+ * Estado y acciones del chat. Se apoya en una conexión ya establecida: el componente que lo
+ * usa solo se monta estando conectado, y se vuelve a montar tras cada reconexión, de modo que
+ * al entrar de nuevo en la sala recupera los mensajes recientes desde el servidor.
  */
 export function useChat(hub) {
+  const initialRoom = loadSavedSession().room ?? DEFAULT_ROOM
+
   const currentRoom = ref(null)
   const messages = ref([])
   const typingUserName = ref('')
@@ -39,21 +43,18 @@ export function useChat(hub) {
     if (room === currentRoom.value) showTypingIndicator(userName)
   })
 
-  // Al reconectar, el servidor asigna un ConnectionId nuevo que no pertenece a ningún grupo,
-  // así que hay que volver a entrar en la sala para seguir recibiendo sus mensajes.
-  const stopListeningReconnections = hub.onReconnected(() => {
-    if (currentRoom.value) hub.invoke(HubMethods.JoinRoom, currentRoom.value)
-  })
-  onBeforeUnmount(stopListeningReconnections)
-
   async function joinRoom(room) {
     const roomName = room.trim()
     if (roomName === currentRoom.value) return
 
     await runReportingErrors(async () => {
       if (currentRoom.value) await hub.invoke(HubMethods.LeaveRoom, currentRoom.value)
-      await hub.invoke(HubMethods.JoinRoom, roomName)
+
+      const recentMessages = await hub.invoke(HubMethods.JoinRoom, roomName)
+      addMissingMessages(recentMessages)
+
       currentRoom.value = roomName
+      updateSavedSession({ room: roomName })
     })
   }
 
@@ -69,6 +70,18 @@ export function useChat(hub) {
     lastTypingNotificationAt = now
     // Es un aviso puramente visual: si se pierde no merece la pena mostrar un error.
     hub.invoke(HubMethods.NotifyTyping, currentRoom.value).catch(() => {})
+  }
+
+  // El historial que devuelve el servidor puede incluir mensajes que ya tenemos: los que llegaron
+  // en directo mientras entrábamos o los de una visita anterior a la sala. Añadimos solo los que
+  // faltan y dejamos la lista en orden cronológico.
+  function addMissingMessages(recentMessages) {
+    const knownIds = new Set(messages.value.map((message) => message.id))
+    const missingMessages = recentMessages
+      .filter((message) => !knownIds.has(message.id))
+      .map((message) => ({ ...message, isSystem: false }))
+
+    messages.value = [...missingMessages, ...messages.value].sort(bySentAt)
   }
 
   function showTypingIndicator(userName) {
@@ -92,9 +105,10 @@ export function useChat(hub) {
 
   onBeforeUnmount(() => clearTimeout(hideTypingIndicatorTimer))
 
-  joinRoom(DEFAULT_ROOM)
+  joinRoom(initialRoom)
 
   return {
+    initialRoom,
     currentRoom,
     currentRoomMessages,
     typingUserName,
@@ -103,6 +117,10 @@ export function useChat(hub) {
     sendMessage,
     notifyTyping,
   }
+}
+
+function bySentAt(first, second) {
+  return new Date(first.sentAt) - new Date(second.sentAt)
 }
 
 // Una HubException llega como "An unexpected error occurred invoking 'X' on the server.

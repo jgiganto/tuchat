@@ -12,7 +12,10 @@ namespace Server.Chat;
 /// SignalR crea una instancia nueva del Hub por cada llamada, así que no puede guardar estado
 /// en campos. Lo que tenga que sobrevivir entre llamadas va en servicios singleton, como el registro de usuarios.
 /// </remarks>
-public sealed class ChatHub(IConnectedUserRegistry connectedUsers, ILogger<ChatHub> logger) : Hub<IChatClient>
+public sealed class ChatHub(
+    IConnectedUserRegistry connectedUsers,
+    IChatHistory chatHistory,
+    ILogger<ChatHub> logger) : Hub<IChatClient>
 {
     public const string Route = "/hubs/chat";
 
@@ -44,26 +47,42 @@ public sealed class ChatHub(IConnectedUserRegistry connectedUsers, ILogger<ChatH
         await base.OnDisconnectedAsync(exception);
     }
 
-    public async Task JoinRoom(string room)
+    /// <returns>
+    /// Los mensajes recientes de la sala. Lo que devuelve un método del Hub le llega al cliente
+    /// como resultado de su connection.invoke(...), solo a él.
+    /// </returns>
+    public async Task<IReadOnlyList<ChatMessage>> JoinRoom(string room)
     {
         var roomName = RequireText(room, "El nombre de la sala", MaxRoomNameLength);
 
         await Groups.AddToGroupAsync(Context.ConnectionId, roomName);
+        logger.LogInformation("{UserName} entra en la sala {Room}", CurrentUserName, roomName);
         await AnnounceInRoom(roomName, $"{CurrentUserName} se ha unido a la sala");
+
+        // El historial se lee después de entrar en el grupo para no perder ningún mensaje enviado
+        // justo en medio. Si alguno llega por las dos vías, el cliente lo descarta por su Id.
+        return chatHistory.GetRecentMessages(roomName);
     }
 
     public async Task LeaveRoom(string room)
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, room);
+        logger.LogInformation("{UserName} sale de la sala {Room}", CurrentUserName, room);
         await AnnounceInRoom(room, $"{CurrentUserName} ha salido de la sala");
     }
 
     public Task SendChatMessage(string room, string text)
     {
+        var roomName = RequireText(room, "El nombre de la sala", MaxRoomNameLength);
         var messageText = RequireText(text, "El mensaje", MaxMessageLength);
-        var message = new ChatMessage(room, CurrentUserName, messageText, DateTimeOffset.UtcNow);
+        var message = new ChatMessage(Guid.NewGuid(), roomName, CurrentUserName, messageText, DateTimeOffset.UtcNow);
 
-        return Clients.Group(room).ReceiveChatMessage(message);
+        chatHistory.Add(message);
+
+        // Se sustituyen los saltos de línea para que un mensaje no pueda fingir líneas falsas en el log.
+        logger.LogInformation("[{Room}] {UserName}: {Text}", roomName, message.UserName, messageText.ReplaceLineEndings(" "));
+
+        return Clients.Group(roomName).ReceiveChatMessage(message);
     }
 
     public Task NotifyTyping(string room) =>
@@ -72,7 +91,7 @@ public sealed class ChatHub(IConnectedUserRegistry connectedUsers, ILogger<ChatH
     private string CurrentUserName => connectedUsers.GetUserName(Context.ConnectionId);
 
     private Task AnnounceInRoom(string room, string text) =>
-        Clients.Group(room).ReceiveSystemMessage(new SystemMessage(room, text, DateTimeOffset.UtcNow));
+        Clients.Group(room).ReceiveSystemMessage(new SystemMessage(Guid.NewGuid(), room, text, DateTimeOffset.UtcNow));
 
     // El nombre llega en la URL de conexión. Si viene vacío se genera uno, y si es demasiado largo
     // se recorta: lanzar una excepción aquí cortaría la conexión sin un mensaje claro para el usuario.

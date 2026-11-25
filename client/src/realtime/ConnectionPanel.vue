@@ -7,6 +7,7 @@ const props = defineProps({
   hub: { type: Object, required: true },
 })
 const userName = defineModel('userName', { type: String, required: true })
+const emit = defineEmits(['connect', 'disconnect'])
 
 const STATE_LABELS = {
   [ConnectionState.Disconnected]: 'Desconectado',
@@ -15,7 +16,7 @@ const STATE_LABELS = {
   [ConnectionState.Reconnecting]: 'Reconectando',
 }
 
-const { state, lastError, isConnected, connect, disconnect } = props.hub
+const { state, lastError, isConnected } = props.hub
 const onlineUserCount = ref(0)
 
 const stateLabel = computed(() => STATE_LABELS[state.value])
@@ -36,8 +37,8 @@ useHubEvent(props.hub, ServerEvents.UpdateOnlineUserCount, (count) => {
         <input v-model="userName" :disabled="isConnected" :maxlength="TextLimits.UserName" />
       </label>
 
-      <button v-if="!isConnected" :disabled="isConnecting" @click="connect(userName)">Conectar</button>
-      <button v-else class="secondary" @click="disconnect">Desconectar</button>
+      <button v-if="!isConnected" :disabled="isConnecting" @click="emit('connect')">Conectar</button>
+      <button v-else class="secondary" @click="emit('disconnect')">Desconectar</button>
 
       <span class="state-badge" :class="`state-${state.toLowerCase()}`">{{ stateLabel }}</span>
       <span v-if="isConnected" class="muted">{{ onlineUserCount }} conectados</span>

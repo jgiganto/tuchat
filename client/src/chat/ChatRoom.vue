@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch, nextTick } from 'vue'
-import { useChat, DEFAULT_ROOM } from './useChat'
+import { useChat } from './useChat'
 import { TextLimits } from '../realtime/realtimeContract'
 
 const props = defineProps({
@@ -8,10 +8,18 @@ const props = defineProps({
   userName: { type: String, required: true },
 })
 
-const { currentRoom, currentRoomMessages, typingUserName, errorMessage, joinRoom, sendMessage, notifyTyping } =
-  useChat(props.hub)
+const {
+  initialRoom,
+  currentRoom,
+  currentRoomMessages,
+  typingUserName,
+  errorMessage,
+  joinRoom,
+  sendMessage,
+  notifyTyping,
+} = useChat(props.hub)
 
-const roomInput = ref(DEFAULT_ROOM)
+const roomInput = ref(initialRoom)
 const messageInput = ref('')
 const messageList = ref(null)
 
@@ -47,7 +55,7 @@ function formatTime(timestamp) {
     </form>
 
     <ul ref="messageList" class="message-list">
-      <li v-for="(message, index) in currentRoomMessages" :key="index" :class="{ system: message.isSystem }">
+      <li v-for="message in currentRoomMessages" :key="message.id" :class="{ system: message.isSystem }">
         <span class="timestamp">{{ formatTime(message.sentAt) }}</span>
         <i v-if="message.isSystem">{{ message.text }}</i>
         <template v-else>

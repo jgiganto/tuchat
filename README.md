@@ -36,6 +36,8 @@ server/
     ChatMessage.cs, SystemMessage.cs, TypingNotification.cs
     IConnectedUserRegistry.cs     Qué usuario hay detrás de cada conexión
     InMemoryConnectedUserRegistry.cs
+    IChatHistory.cs               Últimos mensajes de cada sala
+    InMemoryChatHistory.cs
     HubRateLimitFilter.cs         Máximo de llamadas por conexión
 client/src/
   App.vue                         Crea la conexión y compone la pantalla
@@ -46,6 +48,7 @@ client/src/
   chat/
     useChat.js                    Estado y acciones del chat
     ChatRoom.vue                  Vista del chat
+  session/savedSession.js         Usuario, sala y conexión recordados al recargar
   styles/main.css                 Variables de color y estilos compartidos
 ```
 
@@ -56,11 +59,24 @@ Los componentes `.vue` solo pintan; el estado y la comunicación con el servidor
 | Acción | Cliente | Servidor |
 |---|---|---|
 | Conectar | `useHubConnection.connect` | `ChatHub.OnConnectedAsync` |
-| Entrar en sala | `useChat.joinRoom` | `ChatHub.JoinRoom` (Groups) |
-| Enviar mensaje | `useChat.sendMessage` | `ChatHub.SendChatMessage` -> `Clients.Group` |
+| Entrar en sala | `useChat.joinRoom` (recibe el historial) | `ChatHub.JoinRoom` (Groups) devuelve los últimos mensajes |
+| Enviar mensaje | `useChat.sendMessage` | `ChatHub.SendChatMessage` -> historial, log y `Clients.Group` |
 | Escribiendo | `useChat.notifyTyping` | `ChatHub.NotifyTyping` -> `Clients.OthersInGroup` |
 | Error controlado | mensaje vacío o demasiado largo | `HubException` en `ChatHub.RequireText` |
 | Demasiadas llamadas | ráfaga de mensajes | `HubRateLimitFilter` |
+
+## Estado al recargar la página
+
+- **Servidor:** guarda en memoria los últimos 50 mensajes de cada sala (hasta 100 salas) y los devuelve
+  al entrar en ella. Se pierden al reiniciar el servidor, que en el plan gratuito de Render ocurre en
+  cada despliegue y cada vez que se duerme.
+- **Navegador:** `sessionStorage` recuerda usuario, sala y si había conexión, y al recargar se reconecta
+  solo. Es independiente en cada pestaña y se borra al cerrarla.
+
+## Logs
+
+Cada conexión, entrada o salida de sala y mensaje se escribe en el log en una línea, por ejemplo
+`[general] usuario123: hola`. En Render se ven en la pestaña Logs del servicio.
 
 ## Despliegue en Render (plan gratuito)
 

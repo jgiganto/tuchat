@@ -28,7 +28,6 @@ export function useHubConnection(hubUrl) {
   const isConnected = computed(() => state.value === ConnectionState.Connected)
 
   const subscriptions = new Set()
-  const reconnectedListeners = new Set()
   let connection = null
 
   // Usuario de la última conexión pedida. Sirve para volver a conectar sin que el usuario
@@ -93,19 +92,12 @@ export function useHubConnection(hubUrl) {
     }
   }
 
-  /** Se ejecuta cada vez que la reconexión automática tiene éxito. Devuelve una función para cancelarlo. */
-  function onReconnected(listener) {
-    reconnectedListeners.add(listener)
-    return () => reconnectedListeners.delete(listener)
-  }
-
   function listenToConnectionLifecycle(hubConnection) {
     hubConnection.onreconnecting(() => {
       state.value = ConnectionState.Reconnecting
     })
     hubConnection.onreconnected(() => {
       state.value = ConnectionState.Connected
-      reconnectedListeners.forEach((listener) => listener())
     })
     hubConnection.onclose((error) => {
       state.value = ConnectionState.Disconnected
@@ -138,7 +130,6 @@ export function useHubConnection(hubUrl) {
     disconnect,
     invoke,
     on,
-    onReconnected,
   }
 }
 
